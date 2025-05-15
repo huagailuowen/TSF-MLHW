@@ -55,6 +55,7 @@ if args.use_gpu and args.use_multi_gpu:
     print(args.gpu)
 
 data_parser = {
+    'ETTh1-f':{'data':'ETTh1_enhanced_features.csv', 'data_dim':31, 'split':[12*30*24, 4*30*24, 4*30*24]},
     'ETTh1':{'data':'ETTh1.csv', 'data_dim':7, 'split':[12*30*24, 4*30*24, 4*30*24]},
     'ETTm1':{'data':'ETTm1.csv', 'data_dim':7, 'split':[4*12*30*24, 4*4*30*24, 4*4*30*24]},
     'WTH':{'data':'WTH.csv', 'data_dim':12, 'split':[28*30*24, 10*30*24, 10*30*24]},

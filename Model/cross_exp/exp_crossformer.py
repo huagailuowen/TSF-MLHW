@@ -21,9 +21,14 @@ import pickle
 import warnings
 warnings.filterwarnings('ignore')
 
+# 设置全局变量表示原始特征数量
+ORIGINAL_FEATURES = 7  # ETT数据集的原始变量数量
+
 class Exp_crossformer(Exp_Basic):
     def __init__(self, args):
         super(Exp_crossformer, self).__init__(args)
+        # 添加新参数，决定是否只用原始特征计算训练损失
+        self.train_original_only = args.train_original_only if hasattr(args, 'train_original_only') else True
     
     def _build_model(self):        
         model = Crossformer(
@@ -79,6 +84,16 @@ class Exp_crossformer(Exp_Basic):
         criterion =  nn.MSELoss()
         return criterion
 
+    def _get_features_for_training(self, pred, true):
+        """根据设置决定训练时用哪些特征计算损失"""
+        if self.train_original_only:
+            return pred[:, :, :ORIGINAL_FEATURES], true[:, :, :ORIGINAL_FEATURES]
+        return pred, true
+
+    def _get_features_for_evaluation(self, pred, true):
+        """评估时永远只使用原始特征"""
+        return pred[:, :, :ORIGINAL_FEATURES], true[:, :, :ORIGINAL_FEATURES]
+
     def vali(self, vali_data, vali_loader, criterion):
         self.model.eval()
         total_loss = []
@@ -86,7 +101,9 @@ class Exp_crossformer(Exp_Basic):
             for i, (batch_x,batch_y) in enumerate(vali_loader):
                 pred, true = self._process_one_batch(
                     vali_data, batch_x, batch_y)
-                loss = criterion(pred.detach().cpu(), true.detach().cpu())
+                # 验证始终只评估原始特征
+                pred_eval, true_eval = self._get_features_for_evaluation(pred, true)
+                loss = criterion(pred_eval.detach().cpu(), true_eval.detach().cpu())
                 total_loss.append(loss.detach().item())
         total_loss = np.average(total_loss)
         self.model.train()
@@ -125,7 +142,9 @@ class Exp_crossformer(Exp_Basic):
                 model_optim.zero_grad()
                 pred, true = self._process_one_batch(
                     train_data, batch_x, batch_y)
-                loss = criterion(pred, true)
+                # 根据设置决定训练时使用哪些特征计算损失
+                pred_train, true_train = self._get_features_for_training(pred, true)
+                loss = criterion(pred_train, true_train)
                 train_loss.append(loss.item())
                 
                 if (i+1) % 100==0:
@@ -174,13 +193,21 @@ class Exp_crossformer(Exp_Basic):
             for i, (batch_x,batch_y) in enumerate(test_loader):
                 pred, true = self._process_one_batch(
                     test_data, batch_x, batch_y, inverse)
-                batch_size = pred.shape[0]
+                
+                # 评估始终只关注原始特征
+                pred_eval, true_eval = self._get_features_for_evaluation(pred, true)
+                
+                batch_size = pred_eval.shape[0]
                 instance_num += batch_size
-                batch_metric = np.array(metric(pred.detach().cpu().numpy(), true.detach().cpu().numpy())) * batch_size
+                batch_metric = np.array(metric(
+                    pred_eval.detach().cpu().numpy(), 
+                    true_eval.detach().cpu().numpy()
+                )) * batch_size
                 metrics_all.append(batch_metric)
-                if (save_pred):
-                    preds.append(pred.detach().cpu().numpy())
-                    trues.append(true.detach().cpu().numpy())
+                
+                if save_pred:
+                    preds.append(pred_eval.detach().cpu().numpy())
+                    trues.append(true_eval.detach().cpu().numpy())
 
         metrics_all = np.stack(metrics_all, axis = 0)
         metrics_mean = metrics_all.sum(axis = 0) / instance_num
@@ -194,7 +221,7 @@ class Exp_crossformer(Exp_Basic):
         print('mse:{}, mae:{}'.format(mse, mae))
 
         np.save(folder_path+'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
-        if (save_pred):
+        if save_pred:
             preds = np.concatenate(preds, axis = 0)
             trues = np.concatenate(trues, axis = 0)
             np.save(folder_path+'pred.npy', preds)
@@ -245,13 +272,21 @@ class Exp_crossformer(Exp_Basic):
             for i, (batch_x,batch_y) in enumerate(data_loader):
                 pred, true = self._process_one_batch(
                     data_set, batch_x, batch_y, inverse)
-                batch_size = pred.shape[0]
+                
+                # 评估始终只关注原始特征
+                pred_eval, true_eval = self._get_features_for_evaluation(pred, true)
+                
+                batch_size = pred_eval.shape[0]
                 instance_num += batch_size
-                batch_metric = np.array(metric(pred.detach().cpu().numpy(), true.detach().cpu().numpy())) * batch_size
+                batch_metric = np.array(metric(
+                    pred_eval.detach().cpu().numpy(), 
+                    true_eval.detach().cpu().numpy()
+                )) * batch_size
                 metrics_all.append(batch_metric)
-                if (save_pred):
-                    preds.append(pred.detach().cpu().numpy())
-                    trues.append(true.detach().cpu().numpy())
+                
+                if save_pred:
+                    preds.append(pred_eval.detach().cpu().numpy())
+                    trues.append(true_eval.detach().cpu().numpy())
 
         metrics_all = np.stack(metrics_all, axis = 0)
         metrics_mean = metrics_all.sum(axis = 0) / instance_num
@@ -265,7 +300,7 @@ class Exp_crossformer(Exp_Basic):
         print('mse:{}, mae:{}'.format(mse, mae))
 
         np.save(folder_path+'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
-        if (save_pred):
+        if save_pred:
             preds = np.concatenate(preds, axis = 0)
             trues = np.concatenate(trues, axis = 0)
             np.save(folder_path+'pred.npy', preds)
