@@ -2,4 +2,6 @@ pandas
 numpy 
 tqdm 
 statsmodels 
-pmdarima
+scikit-learn
+seaborn
+matplotlib

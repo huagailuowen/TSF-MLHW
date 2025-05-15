@@ -12,5 +12,12 @@ Use some traditional time series forecasting methods together with crossformermo
 
 > 4. try to enhance the efficiency of the crossformer by using sparce attention or linear attention.
 
+## Method
 
+1. use drift windows and seasonal decomposition to extract the trend and seasonality of the time series, and use average to get the mean of the overlap part of the relevant windows to generate the final season prediction feature.
+with window size 3 times of the period of the time series might be a good choice.
+
+2. use the sin to represent the periodicity of the time series, we can use both weekly and daily periodicity to generate the final periodicity prediction feature.
+
+3. a problem, this drift window method would cause the trend not smooth enough. 
 ## Requirements
