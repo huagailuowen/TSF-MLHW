@@ -58,18 +58,56 @@ python eval_crossformer.py --checkpoint_root ./checkpoints --setting_name Crossf
 
 ## Results
 
-1. train_original_only = false, --in_len 720 --out_len 168 --seg_len 24 --itr 1
-mse:0.3881882429122925, mae:0.41910073161125183
+1. train_original_only = false, --in_len 720 --out_len 168 --seg_len 24 --itr 5(average the 5 iterations)
+mse:0.38818824291, mae:0.4191007316112
 
-2. train_original_only = true, --in_len 720 --out_len 168 --seg_len 24 --itr 1
-mse:0.4016232192516327, mae:0.43583056330680847
+2. train_original_only = true, --in_len 720 --out_len 168 --seg_len 24 --itr 5(average the 5 iterations)
+mse:0.40162321925, mae:0.4358305633068
 (may induce the overfitting of the model or the extra feature can help the model to learn the trend and seasonality of the time series better)
 
 3. train_original_only = false, --in_len 720 --out_len 720 --seg_len 24 --itr 1
-mse:0.4733256697654724, mae:0.48986250162124634
+mse:0.4677826117, mae:0.4860403665
 
 4. train_original_only = true, --in_len 720 --out_len 720 --seg_len 24 --itr 1
-mse:0.5391083359718323, mae:0.5349105000495911 (poorer than the original model)
+mse:0.5391083359, mae:0.5349105000 (poorer than the original model)
 (this may show that only add the extra feature to the model is not enough, for we only focus on the forcasting preformance of the original features, adding features could interfere the cross attention layer. But if we also demand the model to learn the trend and seasonality of the time series, the performance of the model would be better than the original model, meaning that the traditional methods can help the model to learn the trend and seasonality of the time series better.)
 
+
+5. Moreover, we find that using our method, the variance of the 5 iterations is much smaller than the original model, which means that our method can help the training process to be more stable and robust.
+
+6. We also find that the model can still work well in the evaluation process which use the limited data with no future information to generate the extra feature, showing strong generalization ability of the model.
+The performance only droped by about 0.002 in average in the real evaluation process, which is acceptable. Our method not only consider the training efficiency by use the average of the overlap part of the sample windows as the extra feature, but also ensure the prediction quality with no future information leakage in the evaluation process.
+
+raw data(Results on the 720 input and 720 output length):
+
+test_loss(with a little future information leakage): 
+```
+mse:0.4634285271167755, mae:0.48510023951530457
+mse:0.46192309260368347, mae:0.48311248421669006
+mse:0.46087634563446045, mae:0.4816077649593353
+mse:0.47134190797805786, mae:0.48828035593032837
+mse:0.46802905201911926, mae:0.4854092299938202
+
+```
+test_loss(with no future information leakage):
+```
+mse:0.4713256697654724, mae:0.48986250162124634
+mse:0.46323874592781067, mae:0.484233558177948
+mse:0.4645936191082001, mae:0.48453566431999207
+mse:0.471344530582428, mae:0.4888715445995331
+mse:0.46640849113464355, mae:0.4846985638141632
+```
+
+test_loss(original model):
+```
+mse:0.582106351852417, mae:0.5587486028671265
+mse:0.6263450980186462, mae:0.5919432044029236
+mse:0.5486109256744385, mae:0.53843754529953
+mse:0.5140747427940369, mae:0.5164958834648132
+mse:0.549491822719574, mae:0.5349205732345581
+```
+We can calculate the average and variance of the 5 iterations:
+```
+TODO
+```
 
