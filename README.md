@@ -29,18 +29,33 @@ Given that the crossformer is better at analyzing the relationship between diffe
 
 ## Method
 
-1. use drift windows and seasonal decomposition to extract the trend and seasonality of the time series, and use average to get the mean of the overlap part of the relevant windows to generate the final season prediction feature.
-with window size 3 times of the period of the time series might be a good choice.
+1. First we try to figure out the suitable methods to extract useful features from the time series. We analyze the time series and find that the time series has a strong and complex seasonality, and we can use some traditional methods to extract the trend and seasonality of the time series. Obviously we can't just simply use the stl decomposition to extract the trend and seasonality of the whole time series, for this would omit the local periodicity feature of the time series.
+
+So we combine the stl decomposition with the drift windows method to extract the trend and seasonality of the time series by sampling out some windows from the time series, and then use stl decomposition for the data in the each window.
+
+use drift windows and seasonal decomposition to extract the trend and seasonality of the time series, and use average to get the mean of the overlap part of the relevant windows to generate the final season prediction feature.
+
+then we need to figure out the period and the window size we take.
+
+We analyze the data of the first months and try out a lot of experiments.
+The major 2 choice of period is 24 and 168, which is the daily periodicity and weekly periodicity of the time series. 
+However, we find that the weekly periodicity is not stable enough, when the window size is limited(the maximum size can't exceed the size of input data, which is 720). And the decomposition of the weekly periodicity is not precise enough for everyday as the dataset is a high-frequency dataset, where the data points are collected at short intervals (every 1 hour). So we decide to use the daily periodicity to extract the trend and seasonality of the time series, let the model to learn the weekly periodicity by itself(the trend feature we collected has already contain the weekly periodicity, and the model can learn the weekly periodicity by itself easily).
+
+a window size with window size 7 times of the period of the time series might be a good choice, because we ensure both the stability of the decomposition and excavation of the local periodicity feature for different parts of the time series.
 
 2. use the sin to represent the periodicity of the time series, we can use both weekly and daily periodicity to generate the final periodicity prediction feature.
 Furthermore, use 2-step seasonal decomposition with different period is also a promising method to extract the periodicity of the time series. First step we use the daily periodicity to extract the daily periodicity of the time series, and then use the weekly periodicity to extract the more subtle periodicity of the time series. This method can be used to extract the periodicity of the time series with different period, and then use the average to get the mean of the overlap part of the relevant windows to generate the final periodicity prediction feature.
 
-3. a problem, this drift window method would cause the trend not smooth enough.
+3. There is a problem, this drift window method would cause the trend not smooth enough. We take out some experiments, and find out savgol filter is a good choice to smooth the trend.
 We use savgol filter to smooth the trend, and then use the smoothed trend to generate the final trend prediction feature. This would prevent the crossformer being overfitting to the origin trend with noise.
 
 4. for the efficiency of the training process, we preprocess the data and save the features to a file, and then use the preprocessed data to train the model. But the drift window method would leak the future information to the past, so we need to use a mask to prevent the model from using the future information during the evaluation process by generating the extra feature online. This would prevent the model from using the future information during the evaluation process.
 
 We have running several experiments to test if the training data with some extent of future information leakage(the output length is much longer than the size of window) would result in crash in evaluation process, and we found that the model can still work well in the evaluation process, showing strong generalization ability of the model.
+
+5. As we produce the high quality extra feature, we suppose that the model can also learn from this artificial feature, which may teach the model to learn the trend and seasonality of the time series better.
+So we carry out the experiment to train the model with the extra feature and the original feature together by changing the loss function to fit both the extra feature and the original feature when the parameter train_original_only is set to false, otherwise the model will only try to predict those original features.
+We control the remaining parameters to test which way is better. 
 
 ## Requirements
 
@@ -63,7 +78,10 @@ mse:0.38818824291, mae:0.4191007316112
 
 2. train_original_only = true, --in_len 720 --out_len 168 --seg_len 24 --itr 5(average the 5 iterations)
 mse:0.40162321925, mae:0.4358305633068
-(may induce the overfitting of the model or the extra feature can help the model to learn the trend and seasonality of the time series better)
+(may induce the overfitting of the model or the extra feature can help the model to learn the trend and seasonality of the time series better.
+We know that the crossformer model is very sensitive to the input data, noise and lack of data can cause the model to overfit to the input data, 
+leading to poor performance in the evaluation process.
+In our hybrid training process, we push the model to learn the trend and seasonality of the time series by using the extra feature, not only focus on the original features. This may be a good way to improve the performance of the model.)
 
 3. train_original_only = false, --in_len 720 --out_len 720 --seg_len 24 --itr 1
 mse:0.4677826117, mae:0.4860403665
