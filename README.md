@@ -29,7 +29,11 @@ Given that the crossformer is better at analyzing the relationship between diffe
 
 ## Method
 
-1. First we try to figure out the suitable methods to extract useful features from the time series. We analyze the time series and find that the time series has a strong and complex seasonality, and we can use some traditional methods to extract the trend and seasonality of the time series. Obviously we can't just simply use the stl decomposition to extract the trend and seasonality of the whole time series, for this would omit the local periodicity feature of the time series.
+1. First we try to figure out the suitable methods to extract useful features from the time series. 
+
+[image] : diagram/original_features.png
+
+We analyze the time series and find that the time series has a strong and complex seasonality, and we can use some traditional methods to extract the trend and seasonality of the time series. Obviously we can't just simply use the stl decomposition to extract the trend and seasonality of the whole time series, for this would omit the local periodicity feature of the time series.
 
 So we combine the stl decomposition with the drift windows method to extract the trend and seasonality of the time series by sampling out some windows from the time series, and then use stl decomposition for the data in the each window.
 
@@ -38,18 +42,40 @@ use drift windows and seasonal decomposition to extract the trend and seasonalit
 then we need to figure out the period and the window size we take.
 
 We analyze the data of the first months and try out a lot of experiments.
-The major 2 choice of period is 24 and 168, which is the daily periodicity and weekly periodicity of the time series. 
-However, we find that the weekly periodicity is not stable enough, when the window size is limited(the maximum size can't exceed the size of input data, which is 720). And the decomposition of the weekly periodicity is not precise enough for everyday as the dataset is a high-frequency dataset, where the data points are collected at short intervals (every 1 hour). So we decide to use the daily periodicity to extract the trend and seasonality of the time series, let the model to learn the weekly periodicity by itself(the trend feature we collected has already contain the weekly periodicity, and the model can learn the weekly periodicity by itself easily).
 
-a window size with window size 7 times of the period of the time series might be a good choice, because we ensure both the stability of the decomposition and excavation of the local periodicity feature for different parts of the time series.
+We compare 2 decomposition methods, the stl decomposition and the seasonal decomposition, and we find that the stl decomposition is more precise than the seasonal decomposition, with a seasonal behavior that record more detail of the time series. So we use the stl decomposition to extract the trend and seasonality of the time series.
+
+The major 2 choice of period is 24 and 168, which is the daily periodicity and weekly periodicity of the time series. 
+However, we find that the weekly periodicity is not stable enough, when the window size is limited(the maximum size can't exceed the size of input data, which is 720). And the decomposition of the weekly periodicity is not precise enough for everyday as the dataset is a high-frequency dataset, where the data points are collected at short intervals (every 1 hour). And it is also too easily to become overfitted to the data, which is not good for the model to learn the periodicity of the time series.
+
+[image] : diagram/composition_method/HUFL_stl_p167.png
+[image] : diagram/composition_method/HUFL_stl_p23.png
+
+So we decide to use the daily periodicity to extract the trend and seasonality of the time series, let the model to learn the weekly periodicity by itself(the trend feature we collected has already contain the weekly periodicity, and the model can learn the weekly periodicity by itself easily).
+
+
+A window size with window size 7 times of the period of the time series might be a good choice, because we ensure both the stability of the decomposition and excavation of the local periodicity feature for different parts of the time series.
+
+Furthermore, use 2-step seasonal decomposition with different period is also a promising method to extract the periodicity of the time series. First step we use the daily periodicity to extract the daily periodicity of the time series, and then use the weekly periodicity to extract the more subtle periodicity of the time series. This method can be used to extract the periodicity of the time series with different period, and then use the average to get the mean of the overlap part of the relevant windows to generate the final periodicity prediction feature.
+[image] : diagram/LUFL_decomp_recon_p24.png
+[image] : diagram/LUFL_special/LUFL_two_step_decomposition.png
+We just use the above method in the feature LUFL, as we find out that the residual of the normal seasonal decomposition has periodicity.
+
 
 2. use the sin to represent the periodicity of the time series, we can use both weekly and daily periodicity to generate the final periodicity prediction feature.
-Furthermore, use 2-step seasonal decomposition with different period is also a promising method to extract the periodicity of the time series. First step we use the daily periodicity to extract the daily periodicity of the time series, and then use the weekly periodicity to extract the more subtle periodicity of the time series. This method can be used to extract the periodicity of the time series with different period, and then use the average to get the mean of the overlap part of the relevant windows to generate the final periodicity prediction feature.
+
 
 3. There is a problem, this drift window method would cause the trend not smooth enough. We take out some experiments, and find out savgol filter is a good choice to smooth the trend.
 We use savgol filter to smooth the trend, and then use the smoothed trend to generate the final trend prediction feature. This would prevent the crossformer being overfitting to the origin trend with noise.
+[image] : diagram/HUFL_decomposition_reconstruction_p24.png
+[image] : diagram/smooth_method/rmse_overall_comparison.png
+
+[image] : diagram/smooth_method/HUFL_decomp_recon_p24_savgol.png
+[image] : diagram/smooth_method/HUFL_trend_smoothing_comparison_savgol.png
 
 4. for the efficiency of the training process, we preprocess the data and save the features to a file, and then use the preprocessed data to train the model. But the drift window method would leak the future information to the past, so we need to use a mask to prevent the model from using the future information during the evaluation process by generating the extra feature online. This would prevent the model from using the future information during the evaluation process.
+
+[image] : self draw an example of the drift window method
 
 We have running several experiments to test if the training data with some extent of future information leakage(the output length is much longer than the size of window) would result in crash in evaluation process, and we found that the model can still work well in the evaluation process, showing strong generalization ability of the model.
 
